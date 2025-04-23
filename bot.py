@@ -1,20 +1,32 @@
 import os
 import logging
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler,
+    ContextTypes, filters
+)
+from aiohttp import web
 
-# Load .env if running locally (Render 上用環境變數設定)
+# --- 環境設定 ---
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # 記得在 Render 上設定這個！
+RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL")
+assert BOT_TOKEN, "❌ 請設定 BOT_TOKEN 環境變數"
+assert RENDER_EXTERNAL_URL, "❌ 請設定 RENDER_EXTERNAL_URL 環境變數"
 
+# --- 紀錄記帳資料 ---
 records = []
 
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+# --- Logging ---
+logging.basicConfig(level=logging.INFO)
 
+# --- 初始化 Telegram Bot ---
+app = Application.builder().token(BOT_TOKEN).build()
+bot = app.bot
+
+# --- 指令與訊息處理 ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Hello! 傳送 + 或 - 加數字 就可以記帳喔～")
 
@@ -78,35 +90,42 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("請輸入正確格式，例如：+123456 或 -50000")
 
-async def webhook(request):
+# --- Webhook 處理器 ---
+async def telegram_webhook(request):
     if request.method == "POST":
-        payload = await request.json()
-        update = Update.de_json(payload, bot.bot)
-        await bot.process_update(update)
-        return web.Response(text="OK")
-    return web.Response(text="Webhook running!")
+        data = await request.json()
+        update = Update.de_json(data, bot)
+        await app.update_queue.put(update)
+        return web.Response(text="ok")
+    return web.Response(text="Running")
 
-from aiohttp import web
+# --- 啟動 aiohttp server ---
+async def start_web_app():
+    webhook_path = f"/webhook/{BOT_TOKEN}"
+    full_webhook_url = f"{RENDER_EXTERNAL_URL}{webhook_path}"
+    await bot.set_webhook(full_webhook_url)
+    logging.info(f"✅ Webhook set: {full_webhook_url}")
 
-app = Application.builder().token(BOT_TOKEN).build()
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-bot = app.bot
-
-async def main():
-    await bot.set_webhook(url=WEBHOOK_URL)
-    logging.info(f"Webhook set to {WEBHOOK_URL}")
-
-    web_app = web.Application()
-    web_app.router.add_post("/", webhook)
-    web_app.router.add_get("/", webhook)
-    runner = web.AppRunner(web_app)
+    aio_app = web.Application()
+    aio_app.router.add_post(webhook_path, telegram_webhook)
+    aio_app.router.add_get("/", lambda _: web.Response(text="👋 Webhook running"))
+    runner = web.AppRunner(aio_app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", int(os.getenv("PORT", 8000)))
+    site = web.TCPSite(runner, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
     await site.start()
-    logging.info("🚀 Webhook server is running")
+    logging.info("🚀 Server is ready and listening.")
 
+# --- 主程式 ---
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(main())
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    async def run():
+        await start_web_app()
+        await app.initialize()
+        await app.start()
+        await app.updater.start_polling()  # webhook 模式也需要這行以處理內部佇列
+
+    asyncio.run(run())
