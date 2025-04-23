@@ -60,16 +60,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             amt = r['amount']
             lines.append(f"{r['timestamp']} +{amt}/1={amt:.4f}")
         lines.append("-" * 26)
-        lines.append(f"下发：{len(withdrawals)}  修正：0")
+        lines.append(f"下發：{len(withdrawals)}  修正：0")
         for r in withdrawals:
             amt = abs(r['amount'])
             lines.append(f"{r['timestamp']} +{amt:.4f}")
         lines.append("-" * 26)
         lines += [
-            "预设汇率：1.0000",
-            "上笔汇率：1.0000",
-            "此笔汇率：1.0000",
-            "手续费率：0.0000 %",
+            "預設匯率：1.0000",
+            "上筆匯率：1.0000",
+            "此筆匯率：1.0000",
+            "手續費率：0.0000 %",
             "-" * 26,
         ]
         total_in = sum(r["amount"] for r in deposits)
@@ -77,9 +77,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         diff = total_in - total_out
         lines += [
             f"已入款(PHP)：{total_in:.4f}",
-            f"应下发(PHP)：{total_in:.4f}",
-            f"已下发(PHP)：{total_out:.4f}",
-            f"未下发(PHP)：{diff:.4f}",
+            f"應下發(PHP)：{total_in:.4f}",
+            f"已下發(PHP)：{total_out:.4f}",
+            f"未下發(PHP)：{diff:.4f}",
             "-" * 26,
         ]
         if diff != 0:
@@ -126,6 +126,6 @@ if __name__ == "__main__":
         await start_web_app()
         await app.initialize()
         await app.start()
-        await app.updater.start_polling()  # webhook 模式也需要這行以處理內部佇列
+        await app.updater.start_polling()  # webhook 模式也需要這行以處理內部位列
 
     asyncio.run(run())
