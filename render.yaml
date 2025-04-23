@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: kydb_Accounting_bot
+    env: python
+    region: singapore  # 可以根據你的位置選擇 (例如 oregon、frankfurt 等)
+    buildCommand: ""
+    startCommand: python bot.py
+    repo: https://github.com/kydbmax8228/kydb_Accounting_bot
+    branch: main
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: BOT_TOKEN
+        sync: false  # false 代表你會手動在 Render 網頁後台設定
